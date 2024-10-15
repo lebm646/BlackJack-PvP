@@ -2,26 +2,29 @@ class Player:
     # to create a player, input name. 
     # You can add numbers of chips if wish to. 
     # Default number is 100
-    def __init__(self, name, chips = 100, cards =[]):
+    def __init__(self, name):
         self.name = name
-        self.chips = chips
+        self.chips = 100
         self.game_played = 0
         self.game_won = 0
-        self.cards = cards
-
+        self.cards = []
+    # add games played fuction
     def play(self):
         self.game_played += 1
-
+    # win function
     def win(self, bet):
         self.game_won += 1
         self.chips += bet
-        # print('{name} has {chips} remaining chips'
-        #       .format(name = self.name, chips = self.chips))
-
+        print('{name} won! {name} has {chips} chips!'
+              .format(name = self.name, chips = self.chips))
+        print("{name}'s win rate: {win_rate}%.".format(name = self.name, win_rate = self.game_won / self.game_played * 100))
+    # lose function
     def lose(self, bet):
         self.chips -= bet
-        # print('{name} has {chips} remaining chips'
-        #       .format(name = self.name, chips = self.chips))
+        print('{name} lost! {name} has {chips} chips'
+              .format(name = self.name, chips = self.chips))
+        print("{name}'s win rate: {win_rate}%.".format(name = self.name, win_rate = self.game_won / self.game_played * 100))
+    # hit function
     def hit(self):
         while True:
             hit = input('{player}, do you want to hit? yes/no: '.format(player = self.name)).strip().lower()
@@ -37,7 +40,7 @@ class Player:
                     print('You are busted!')
                     break
                 elif player_points == 21:
-                    breakc
+                    break
                 continue
             else:
                 print('Invalid input! Please try again!')
@@ -70,9 +73,14 @@ def calculate(cards):
     
 
 #input names for players
-player_1_name = input('welcome to Black Jack Terminal! Please enter your name: ')
+player_1_name = input("Welcome to Black Jack Terminal!\nThis is a 2-player game.\nEach player starts with 100 chips!\nPlease enter the first player's name: ")
 player_1 = Player(player_1_name)
-player_2_name = input("Enter the second player's name: ")
+while True:
+    player_2_name = input("Enter the second player's name: ")
+    if player_2_name == player_1_name:
+        player_2_name = print("Same name! Please choose another name!")
+        continue
+    break
 player_2 = Player(player_2_name)
 # looping through games
 while True:
@@ -84,12 +92,18 @@ while True:
     except ValueError:
         print("Invalid input! Please enter a valid number for the bet.")
         continue
-    if int(bet) > player_1.chips or int(bet) > player_2.chips or int(bet) <=0:
+    if int(bet) > player_1.chips or int(bet) > player_2.chips:
+        print('Bet is too much! Choose a smaller bet!')
+        continue
+    elif int(bet) <=0:
         print('Invalid bet! Please try again!')
         continue
     else: print('The agreed bet for this game is {}'.format(bet))
 
-    # draw cards:
+    # add games played
+    player_1.play()
+    player_2.play()
+    # draw first round of cards
     random.shuffle(deck)
     player_1.cards = [draw(), draw()]
     player_2.cards = [draw(), draw()]
@@ -108,23 +122,15 @@ while True:
     if calculate(player_1.cards) > 21:
         player_1.lose(int(bet))
         player_2.win(int(bet))
-        print('{player_1} lost! {player_1} has {chips} chips'.format(player_1 = player_1_name, chips = player_1.chips))
-        print('{player_2} won! {player_2} has {chips} chips'.format(player_2 = player_2_name, chips = player_2.chips))
     elif calculate(player_2.cards) >21 :  
         player_1.win(int(bet))
         player_2.lose(int(bet))
-        print('{player_1} won! {player_1} has {chips} chips'.format(player_1 = player_1_name, chips = player_1.chips))
-        print('{player_2} lost! {player_2} has {chips} chips'.format(player_2 = player_2_name, chips = player_2.chips))
     elif calculate(player_1.cards) > calculate(player_2.cards):
         player_1.win(int(bet))
         player_2.lose(int(bet))
-        print('{player_1} won! {player_1} has {chips} chips'.format(player_1 = player_1_name, chips = player_1.chips))
-        print('{player_2} lost! {player_2} has {chips} chips'.format(player_2 = player_2_name, chips = player_2.chips))
     elif calculate(player_1.cards) < calculate(player_2.cards):
         player_1.lose(int(bet))
         player_2.win(int(bet))
-        print('{player_1} lost! {player_1} has {chips} chips'.format(player_1 = player_1_name, chips = player_1.chips))
-        print('{player_2} won! {player_2} has {chips} chips'.format(player_2 = player_2_name, chips = player_2.chips))
     else:
         print("It's a tie! No chips are exchanged.")
         print('{player_1} has {chips} chips'.format(player_1 = player_1_name, chips = player_1.chips))
