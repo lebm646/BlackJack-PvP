@@ -7,13 +7,31 @@ app = Flask(__name__)
 deck = ['A', 'K', 'Q', 'J', 10, 9, 8, 7, 6, 5, 4, 3, 2] * 4
 
 class Player:
-    def __init__(self, name):
+    def __init__(self, name, chips = 100):
         self.name = name
         self.cards = []
         self.total = 0
         self.busted = False
         self.bj = False
+        self.chips = chips
+        self.bet = 0
     
+    def place_bet(self, amount):
+        if amount > self.chips:
+            return False
+        
+        self.bet = amount
+        self.chips -= amount
+        return True
+    
+    def win_bet(self, multiplier = 2):
+        self.chips += self.bet * multiplier
+        self.bet = 0
+
+    def lose_bet(self):
+        self.bet = 0
+        
+
     def hit(self):
         if self.busted or self.bj:
             return None  # Prevent drawing if busted or blackjack
