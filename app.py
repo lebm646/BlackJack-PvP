@@ -30,7 +30,7 @@ class Player:
 
     def lose_bet(self):
         self.bet = 0
-        
+
 
     def hit(self):
         if self.busted or self.bj:
@@ -78,6 +78,11 @@ def start_game():
     data = request.json
     player1 = Player(data['player1'])
     player2 = Player(data['player2'])
+
+    bet = data.get('bet', 10)
+
+    if not player1.place_bet(bet) or not player2.place_bet(bet):
+        return jsonify({"error": "Not enough chips to place bet"}), 400
     
     # Give each player two initial cards
     player1.hit()
@@ -89,8 +94,8 @@ def start_game():
 
     return jsonify({
         "message": "Game started!",
-        "player1": {"name": player1.name, "cards": player1.cards, "total": player1.total},
-        "player2": {"name": player2.name, "cards": player2.cards, "total": player2.total},
+        "player1": {"name": player1.name, "cards": player1.cards, "total": player1.total, "chips": player1.chips},
+        "player2": {"name": player2.name, "cards": player2.cards, "total": player2.total, "chips": player2.chips},
         "winner": result  # Return winner if any
     })
 
