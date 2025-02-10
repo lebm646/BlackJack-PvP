@@ -73,18 +73,33 @@ def home():
     return render_template('index.html')
 
 @app.route('/start', methods=['POST'])
+@app.route('/start', methods=['POST'])
 def start_game():
     global player1, player2
+
     data = request.json
-    player1 = Player(data['player1'])
-    player2 = Player(data['player2'])
+    bet = data.get('bet', 10)  # Default bet of 10 chips
 
-    bet = data.get('bet', 10)
+    # Preserve chips if players already exist
+    if 'player1' in globals() and player1:
+        player1_chips = player1.chips
+    else:
+        player1_chips = 100  # Default if new game
 
+    if 'player2' in globals() and player2:
+        player2_chips = player2.chips
+    else:
+        player2_chips = 100  # Default if new game
+
+    # Create players while keeping existing chip counts
+    player1 = Player(data['player1'], chips=player1_chips)
+    player2 = Player(data['player2'], chips=player2_chips)
+
+    # Deduct bet from both players
     if not player1.place_bet(bet) or not player2.place_bet(bet):
         return jsonify({"error": "Not enough chips to place bet"}), 400
-    
-    # Give each player two initial cards
+
+    # Deal two cards to each player
     player1.hit()
     player1.hit()
     player2.hit()
@@ -96,8 +111,9 @@ def start_game():
         "message": "Game started!",
         "player1": {"name": player1.name, "cards": player1.cards, "total": player1.total, "chips": player1.chips},
         "player2": {"name": player2.name, "cards": player2.cards, "total": player2.total, "chips": player2.chips},
-        "winner": result  # Return winner if any
+        "winner": result
     })
+
 
 @app.route('/hit', methods=['POST'])
 def hit():
@@ -150,17 +166,27 @@ def check_winner():
     return None  # No winner yet
 
 @app.route('/reset', methods=['POST'])
+@app.route('/reset', methods=['POST'])
 def reset_game():
     global player1, player2, deck
-    deck = ['A', 'K', 'Q', 'J', 10, 9, 8, 7, 6, 5, 4, 3, 2] * 4  # Reset deck
 
-    player1_chips = player1.chips
-    player2_chips = player2.chips
+    # Keep existing chip amounts before resetting the game
+    player1_chips = player1.chips if player1 else 100
+    player2_chips = player2.chips if player2 else 100
 
+    # Reset the deck
+    deck = ['A', 'K', 'Q', 'J', 10, 9, 8, 7, 6, 5, 4, 3, 2] * 4
+
+    # Recreate players with their previous chip amounts
     player1 = Player(player1.name, chips=player1_chips)
     player2 = Player(player2.name, chips=player2_chips)
 
-    return jsonify({"message": "Game has been reset!",  "player1_chips": player1.chips, "player2_chips": player2.chips})
+    return jsonify({
+        "message": "Game has been reset!",
+        "player1_chips": player1.chips,
+        "player2_chips": player2.chips
+    })
+
 
 if __name__ == '__main__':
     app.run(debug=True)
