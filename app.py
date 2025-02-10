@@ -12,7 +12,7 @@ class Player:
         self.cards = []
         self.total = 0
         self.busted = False
-        self.bj = False
+        self.blackjack = False
         self.chips = chips
         self.bet = 0
     
@@ -33,7 +33,7 @@ class Player:
 
 
     def hit(self):
-        if self.busted or self.bj:
+        if self.busted or self.blackjack:
             return None  # Prevent drawing if busted or blackjack
         
         card = draw()
@@ -43,7 +43,7 @@ class Player:
         if self.total > 21:
             self.busted = True
         if self.total == 21:
-            self.bj = True
+            self.blackjack = True
 
         return card
 
@@ -130,7 +130,7 @@ def hit():
     card = player.hit()
 
     if card is None:
-        return jsonify({"error": "Cannot draw more cards", "busted": player.busted, "blackjack": player.bj, "chips": player.chips})
+        return jsonify({"error": "Cannot draw more cards", "busted": player.busted, "blackjack": player.blackjack, "chips": player.chips})
     
     if player.busted:
         player.lose_bet()
@@ -143,23 +143,23 @@ def hit():
         "cards": player.cards,  # Send updated card list
         "total": player.total,
         "busted": player.busted,
-        "blackjack": player.bj,
+        "blackjack": player.blackjack,
         "chips": player.chips,
         "winner": result  # Send winner message if applicable
     })
 
 def check_winner():
     """Checks if either player has won and returns the result"""
-    if player1.bj and player2.bj:
+    if player1.blackjack and player2.blackjack:
         player1.win_bet(1)
         player2.win_bet(1)
         return "Both players got Blackjack! It's a tie!"
         
-    elif player1.bj or player2.busted:
+    elif player1.blackjack or player2.busted:
         player1.win_bet()
         return f"{player1.name} wins!"
     
-    elif player2.bj or player1.busted:
+    elif player2.blackjack or player1.busted:
         player2.win_bet()
         return f"{player2.name} wins!"
     

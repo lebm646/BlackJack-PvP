@@ -49,7 +49,8 @@ async function hit(player) {
     }
 
     updatePlayerUI(player, data.cards, data.total, data.chips);
-    checkGameStatus(data)
+
+    checkGameStatus(data);
 }
 
 
@@ -87,6 +88,8 @@ async function placeBet(player) {
         return;
     }
     document.getElementById(player + "-chips").innerText = "Chips: " + data.chips;
+
+    updatePlayerUI(player, [], 0, data.chips)
 }
 
 function disableHitButtons() {
