@@ -114,7 +114,10 @@ def hit():
     card = player.hit()
 
     if card is None:
-        return jsonify({"error": "Cannot draw more cards", "busted": player.busted, "blackjack": player.bj})
+        return jsonify({"error": "Cannot draw more cards", "busted": player.busted, "blackjack": player.bj, "chips": player.chips})
+    
+    if player.busted:
+        player.lose_bet()
 
     result = check_winner()  # Check winner after each hit
 
@@ -125,6 +128,7 @@ def hit():
         "total": player.total,
         "busted": player.busted,
         "blackjack": player.bj,
+        "chips": player.chips
         "winner": result  # Send winner message if applicable
     })
 
@@ -132,10 +136,17 @@ def check_winner():
     """Checks if either player has won and returns the result"""
     if player1.bj and player2.bj:
         return "Both players got Blackjack! It's a tie!"
+        player1.win_bet(1)
+        player2.win_bet(1)
+
     elif player1.bj or player2.busted:
+        player1.win_bet()
         return f"{player1.name} wins!"
+    
     elif player2.bj or player1.busted:
+        player2.win_bet()
         return f"{player2.name} wins!"
+    
     return None  # No winner yet
 
 @app.route('/reset', methods=['POST'])
