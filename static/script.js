@@ -4,6 +4,7 @@ let player2Name = "";
 async function startGame() {
     player1Name = document.getElementById("player1").value || player1Name;
     player2Name = document.getElementById("player2").value || player2Name;
+    let bet = parseInt(document.getElementById("bet").value) || 10;
 
     let response = await fetch("/start", {
         method: "POST",
@@ -14,8 +15,8 @@ async function startGame() {
     let data = await response.json();
     document.getElementById("message").innerText = data.message;
 
-    updatePlayerUI("player1", data.player1.cards, data.player1.total);
-    updatePlayerUI("player2", data.player2.cards, data.player2.total);
+    updatePlayerUI("player1", data.player1.cards, data.player1.total, data.player1.chips);
+    updatePlayerUI("player2", data.player2.cards, data.player2.total, data.player2.chips);
 
     // Check for immediate Blackjack wins
     checkGameStatus(data);
