@@ -1,19 +1,22 @@
-A simple yet engaging terminal-based Blackjack game written in Python, simulating a real casino experience with betting, dealer AI, and card deck shuffling.
+A simple multiplayer Blackjack game built using Flask (Python) for the backend and JavaScript (Fetch API) for the frontend. The game allows two players to play against each other, drawing cards and checking for Blackjack or a bust.
 
-🎮 Features
-✅ Real Blackjack Rules – Hit, Stand, Double Down, and Dealer AI logic
-✅ Card Shuffling System – Ensures fair and random gameplay
-✅ Betting Mechanism – Players start with virtual money and place bets each round
-✅ Dynamic Game Flow – The dealer follows standard Blackjack rules for decision-making
-✅ User-Friendly CLI – Intuitive prompts and inputs for smooth gameplay
+🚀 Features
+✅ Two-player mode (No AI, just real players)
+✅ Hit & Stand mechanics following standard Blackjack rules
+✅ Automatic win detection (Blackjack or bust)
+✅ Simple UI with real-time updates
+✅ Game reset feature to start fresh
 
-🛠️ Technologies Used
-Python – Core game logic and structure
-Object-Oriented Programming (OOP) – Modular and scalable design
-Git & GitHub – Version control and project tracking
+📌 How to Play
+1️⃣ Start the game by entering player names and clicking "Start".
+2️⃣ Each player is dealt two cards initially.
+3️⃣ Click "Hit" to draw another card, or stay if satisfied.
+4️⃣ If a player reaches 21 (Blackjack), they win!
+5️⃣ If a player's total exceeds 21, they bust and lose.
+6️⃣ Click "Reset" to start a new game.
 
-🎯 Future Improvements
-
-🔥 Add a graphical interface (GUI) using Pygame or Tkinter
-🎵 Integrate sound effects for a more immersive experience
-🤖 Improve dealer AI for more strategic decision-making
+🎯 Next Steps
+🔹 Add an AI dealer for single-player mode
+🔹 Improve the UI with animations
+🔹 Add a "Stand" button for better strategy
+🔹 Keep track of win/loss statistics
