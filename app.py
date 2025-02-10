@@ -128,17 +128,17 @@ def hit():
         "total": player.total,
         "busted": player.busted,
         "blackjack": player.bj,
-        "chips": player.chips
+        "chips": player.chips,
         "winner": result  # Send winner message if applicable
     })
 
 def check_winner():
     """Checks if either player has won and returns the result"""
     if player1.bj and player2.bj:
-        return "Both players got Blackjack! It's a tie!"
         player1.win_bet(1)
         player2.win_bet(1)
-
+        return "Both players got Blackjack! It's a tie!"
+        
     elif player1.bj or player2.busted:
         player1.win_bet()
         return f"{player1.name} wins!"
@@ -153,9 +153,14 @@ def check_winner():
 def reset_game():
     global player1, player2, deck
     deck = ['A', 'K', 'Q', 'J', 10, 9, 8, 7, 6, 5, 4, 3, 2] * 4  # Reset deck
-    player1 = None
-    player2 = None
-    return jsonify({"message": "Game has been reset!"})
+
+    player1_chips = player1.chips
+    player2_chips = player2.chips
+
+    player1 = Player(player1.name, chips=player1_chips)
+    player2 = Player(player2.name, chips=player2_chips)
+
+    return jsonify({"message": "Game has been reset!",  "player1_chips": player1.chips, "player2_chips": player2.chips})
 
 if __name__ == '__main__':
     app.run(debug=True)
