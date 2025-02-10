@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Blackjack Game</title>
+    <link rel="stylesheet" type="text/css" href="/static/style.css">
+</head>
+<body>
+    <h1>Welcome to Web Blackjack</h1>
+
+    <!-- Enter Player Names -->
+    <div class="input-container">
+        <input id="player1" placeholder="Player 1 Name">
+        <input id="player2" placeholder="Player 2 Name">
+        <button onclick="startGame()">Start Game</button>
+    </div>
+
+    <p id="message"></p>
+
+    <!-- Game UI -->
+    <div class="game-container">
+        <div class="player-container">
+            <h2 id="player1-name">Player 1</h2>
+            <p id="player1-cards">Cards: </p>
+            <p id="player1-total">Total: 0</p>
+            <button onclick="hit('player1')">Hit</button>
+        </div>
+
+        <div class="player-container">
+            <h2 id="player2-name">Player 2</h2>
+            <p id="player2-cards">Cards: </p>
+            <p id="player2-total">Total: 0</p>
+            <button onclick="hit('player2')">Hit</button>
+        </div>
+    </div>
+
+    <!-- Reset Button Placed Below Players -->
+    <div class="reset-container">
+        <button onclick="resetGame()">Reset Game</button>
+    </div>
+
+    <!-- Load JavaScript AFTER the page loads -->
+    <script src="{{ url_for('static', filename='script.js') }}"></script>
+</body>
+</html>
