@@ -1,48 +1,64 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>Blackjack Game</title>
-    <link rel="stylesheet" type="text/css" href="/static/style.css">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Multiplayer Blackjack</title>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
-    <h1>Welcome to Web Blackjack</h1>
+    <div class="app">
+        <header class="app-header">
+            <h1>♠️ Multiplayer Blackjack ♣️</h1>
+        </header>
 
-    <!-- Enter Player Names -->
-    <div class="input-container">
-        <input id="player1" placeholder="Player 1 Name">
-        <input id="player2" placeholder="Player 2 Name">
-        <input id="bet" type="number" placeholder="Players' Bet" min="1">
-        <button onclick="startGame()">Start Game</button>
-    </div>
-
-    <p id="message"></p>
-
-    <!-- Game UI -->
-    <div class="game-container">
-        <div class="player-container">
-            <h2 id="player1-name"></h2>
-            <p id="player1-chips">Chips: </p>
-            <p id="player1-cards">Cards: </p>
-            <p id="player1-total">Total: 0</p>
-            <button onclick="hit('player1')">Hit</button>
+        <div id="lobby" class="game-section">
+            <h2>Create or Join Game</h2>
+            <div class="form-group">
+                <input type="text" id="playerName" placeholder="Your Name" class="form-input">
+                <button id="createGame" class="btn btn-primary">Create New Game</button>
+            </div>
+            <div class="form-group">
+                <input type="text" id="gameId" placeholder="Game ID" class="form-input">
+                <button id="joinGame" class="btn btn-secondary">Join Game</button>
+            </div>
+            <div id="gameList" class="game-list">
+                <h3>Available Games</h3>
+                <div id="availableGames"></div>
+            </div>
         </div>
-        
-        <div class="player-container">
-            <h2 id="player2-name"></h2>
-            <p id="player2-chips">Chips: </p>
-            <p id="player2-cards">Cards: </p>
-            <p id="player2-total">Total: 0</p>
-            <button onclick="hit('player2')">Hit</button>
+
+        <div id="game" class="game-section hidden">
+            <div class="game-info">
+                <div>Game ID: <span id="currentGameId"></span></div>
+                <div>Status: <span id="gameStatus">Waiting for players...</span></div>
+                <div>Players: <span id="playerCount">0</span>/<span id="maxPlayers">5</span></div>
+                <button id="startGame" class="btn btn-primary hidden">Start Game</button>
+            </div>
+
+            <div class="dealer-area">
+                <h2>Dealer</h2>
+                <div id="dealerCards" class="cards"></div>
+                <div id="dealerTotal" class="total">Total: <span>0</span></div>
+            </div>
+
+            <div id="playersArea" class="players-area">
+                <!-- Player areas will be added here dynamically -->
+            </div>
+
+            <div id="gameControls" class="game-controls hidden">
+                <button id="hitBtn" class="btn btn-action">Hit</button>
+                <button id="standBtn" class="btn btn-action">Stand</button>
+            </div>
+            <div class="new-round-container">
+                <button id="newRoundBtn" class="btn btn-secondary hidden">New Round</button>
+            </div>
         </div>
-        
+
+        <div id="gameMessage" class="game-message hidden"></div>
     </div>
 
-    <!-- Reset Button Placed Below Players -->
-    <div class="reset-container">
-        <button onclick="resetGame()">Reset Game</button>
-    </div>
-
-    <!-- Load JavaScript AFTER the page loads -->
     <script src="{{ url_for('static', filename='script.js') }}"></script>
 </body>
 </html>
