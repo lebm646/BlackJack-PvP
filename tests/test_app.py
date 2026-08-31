@@ -28,6 +28,32 @@ class TestAppSessions(unittest.TestCase):
             session_id,
         )
 
+    def test_hitting_blackjack_finishes_single_player_round(self):
+        create_response = self.client.post(
+            "/api/sessions",
+            json={"creator_name": "Alice"},
+        )
+        session_id = create_response.get_json()["session_id"]
+        session = active_sessions[session_id]
+        session.start_game()
+
+        player = session.players[0]
+        player.cards = ["KH", "5D"]
+        player.total = 15
+        player.blackjack = False
+        session.deck.append("6S")
+
+        hit_response = self.client.post(
+            f"/api/sessions/{session_id}/hit",
+            json={"player_name": "Alice"},
+        )
+
+        self.assertEqual(hit_response.status_code, 200)
+        game_state = hit_response.get_json()["game_state"]
+        self.assertEqual(game_state["status"], "finished")
+        self.assertIsNone(game_state["current_player"])
+        self.assertTrue(game_state["winner"])
+
 
 if __name__ == "__main__":
     unittest.main()

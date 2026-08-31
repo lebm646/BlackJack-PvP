@@ -11,6 +11,10 @@ let currentGame = {
     },
     status: 'waiting' // waiting, in_progress, finished
 };
+let lastAnnouncedWinner = null;
+let dealerAnimationId = 0;
+let dealerResultKey = null;
+let inlineMessageTimer = null;
 
 // DOM Elements
 const lobbySection = document.getElementById('lobby');
@@ -56,7 +60,7 @@ document.addEventListener('DOMContentLoaded', () => {
 async function createGame() {
     const playerName = playerNameInput.value.trim();
     if (!playerName) {
-        showMessage('Please enter your name');
+        showInlineMessage('Please enter your name');
         return;
     }
     
@@ -84,11 +88,11 @@ async function createGame() {
             // Start polling for game updates
             pollGameState();
         } else {
-            showMessage(data.error || 'Failed to create game');
+            showInlineMessage(data.error || 'Failed to create game');
         }
     } catch (error) {
         console.error('Error creating game:', error);
-        showMessage('Failed to connect to server');
+        showInlineMessage('Failed to connect to server');
     }
 }
 
@@ -97,12 +101,12 @@ async function joinGame() {
     const gameId = gameIdInput.value.trim();
     
     if (!playerName) {
-        showMessage('Please enter your name');
+        showInlineMessage('Please enter your name');
         return;
     }
     
     if (!gameId) {
-        showMessage('Please enter a game ID');
+        showInlineMessage('Please enter a game ID');
         return;
     }
     
@@ -129,11 +133,11 @@ async function joinGame() {
             // Start polling for game updates
             pollGameState();
         } else {
-            showMessage(data.error || 'Failed to join game');
+            showInlineMessage(data.error || 'Failed to join game');
         }
     } catch (error) {
         console.error('Error joining game:', error);
-        showMessage('Failed to connect to server');
+        showInlineMessage('Failed to connect to server');
     }
 }
 
@@ -146,11 +150,11 @@ async function startGame() {
         
         if (!response.ok) {
             const data = await response.json();
-            showMessage(data.error || 'Failed to start game');
+            showInlineMessage(data.error || 'Failed to start game');
         }
     } catch (error) {
         console.error('Error starting game:', error);
-        showMessage('Failed to start game');
+        showInlineMessage('Failed to start game');
     }
 }
 
@@ -166,22 +170,13 @@ async function hit() {
             const data = await response.json();
             updateGameUI(data.game_state);
             
-            // Show message from server if available
-            if (data.message) {
-                showMessage(data.message, 3000);
-            }
-            
-            // Check if the game is over
-            if (data.game_state.status === 'finished') {
-                showMessage('Round over!', 3000);
-            }
         } else {
             const data = await response.json();
-            showMessage(data.error || 'Failed to hit', 3000);
+            showInlineMessage(data.error || 'Failed to hit');
         }
     } catch (error) {
         console.error('Error hitting:', error);
-        showMessage('Failed to connect to server', 3000);
+        showInlineMessage('Failed to connect to server');
     }
 }
 
@@ -197,17 +192,13 @@ async function stand() {
             const data = await response.json();
             updateGameUI(data.game_state);
             
-            // Show appropriate message
-            if (data.message) {
-                showMessage(data.message, 3000);
-            }
         } else {
             const data = await response.json();
-            showMessage(data.error || 'Failed to stand', 3000);
+            showInlineMessage(data.error || 'Failed to stand');
         }
     } catch (error) {
         console.error('Error standing:', error);
-        showMessage('Failed to connect to server', 3000);
+        showInlineMessage('Failed to connect to server');
     }
 }
 
@@ -220,15 +211,16 @@ async function startNewRound() {
         
         if (response.ok) {
             const data = await response.json();
+            updateGameUI(data.game_state);
             showMessage(data.message || 'New round started!');
             // The polling mechanism will automatically update the UI with the new game state
         } else {
             const data = await response.json();
-            showMessage(data.error || 'Failed to start new round', 5000);
+            showInlineMessage(data.error || 'Failed to start new round', 5000);
         }
     } catch (error) {
         console.error('Error starting new round:', error);
-        showMessage('Failed to connect to server', 5000);
+        showInlineMessage('Failed to connect to server', 5000);
     }
 }
 
@@ -266,13 +258,25 @@ function showMessage(message, duration = 3000) {
     return messageEl;
 }
 
+function showInlineMessage(message, duration = 3000) {
+    gameMessage.textContent = message;
+    gameMessage.classList.remove('hidden');
+    clearTimeout(inlineMessageTimer);
+    inlineMessageTimer = setTimeout(() => {
+        gameMessage.classList.add('hidden');
+    }, duration);
+}
+
 function updateGameUI(gameState) {
     // Update game status
+    currentGame.status = gameState.status;
     gameStatus.textContent = gameState.status;
     playerCount.textContent = gameState.players.length;
     
     // Update dealer
-    updateDealerUI(gameState.dealer);
+    updateDealerUI(gameState.dealer, gameState.status, () => {
+        announceWinner(gameState.winner);
+    });
     
     // Update players
     updatePlayersUI(gameState.players);
@@ -303,15 +307,8 @@ function updateGameUI(gameState) {
     if (gameState.status === 'finished') {
         newRoundContainer.classList.remove('hidden');
         newRoundBtn.classList.remove('hidden');
-        // Only show the last message if it's not already showing
-        if (gameState.messages && gameState.messages.length > 0) {
-            const lastMessage = gameState.messages[gameState.messages.length - 1];
-            // Only show if it's a game result message (not a chip update)
-            if (lastMessage.includes('wins') || lastMessage.includes('bust') || lastMessage.includes('Blackjack')) {
-                showMessage(lastMessage, 5000);
-            }
-        }
     } else {
+        lastAnnouncedWinner = null;
         newRoundContainer.classList.add('hidden');
         newRoundBtn.classList.add('hidden');
     }
@@ -349,34 +346,82 @@ function updateGameUI(gameState) {
     }
 }
 
-function updateDealerUI(dealer) {
-    dealerCards.innerHTML = '';
-    
-    // Show all dealer cards if game is finished, otherwise hide the first card
-    const showAllCards = currentGame.status === 'finished';
-    
-    dealer.cards.forEach((card, index) => {
-        if (index === 0 && !showAllCards) {
-            // Show card back for first card if game is in progress
-            const cardElement = createCardElement('🂠');
-            dealerCards.appendChild(cardElement);
-        } else {
-            const cardElement = createCardElement(formatCard(card));
-            dealerCards.appendChild(cardElement);
-        }
+function announceWinner(winner) {
+    if (!winner || winner === lastAnnouncedWinner) return;
+    lastAnnouncedWinner = winner;
+    showMessage(winner, 5000);
+}
+
+function updateDealerUI(dealer, status, onRevealComplete) {
+    if (status !== 'finished') {
+        dealerAnimationId += 1;
+        dealerResultKey = null;
+        renderDealerCards(dealer.cards, Math.min(2, dealer.cards.length), false);
+        return;
+    }
+
+    const resultKey = `${dealer.cards.join(',')}|${dealer.total}`;
+    if (dealerResultKey === resultKey) return;
+
+    dealerResultKey = resultKey;
+    const animationId = ++dealerAnimationId;
+    const initialCardCount = Math.min(2, dealer.cards.length);
+
+    // Preserve the in-progress view briefly, reveal the hole card, then add
+    // each dealer hit separately so every client can follow the turn.
+    renderDealerCards(dealer.cards, initialCardCount, false);
+    const revealSteps = [initialCardCount];
+    for (let count = initialCardCount + 1; count <= dealer.cards.length; count += 1) {
+        revealSteps.push(count);
+    }
+
+    revealSteps.forEach((visibleCount, index) => {
+        setTimeout(() => {
+            if (animationId !== dealerAnimationId) return;
+            renderDealerCards(dealer.cards, visibleCount, true);
+            if (index === revealSteps.length - 1) onRevealComplete();
+        }, 700 + (index * 900));
     });
-    
-    // Update dealer total
-    if (showAllCards) {
-        dealerTotal.innerHTML = `Total: <span>${dealer.total}</span>`;
-    } else if (dealer.cards.length > 0) {
-        // Only show the value of the visible card
-        const visibleCard = dealer.cards[0];
-        const cardValue = getCardValue(visibleCard);
-        dealerTotal.innerHTML = `Total: <span>${cardValue} + ?</span>`;
+}
+
+function renderDealerCards(cards, visibleCount, revealHoleCard) {
+    dealerCards.innerHTML = '';
+    const visibleCards = cards.slice(0, visibleCount);
+
+    visibleCards.forEach((card, index) => {
+        const cardText = index === 0 && !revealHoleCard ? '🂠' : formatCard(card);
+        dealerCards.appendChild(createCardElement(cardText));
+    });
+
+    if (!revealHoleCard && cards.length > 0) {
+        const visibleCard = cards.length > 1 ? cards[1] : cards[0];
+        dealerTotal.innerHTML = `Total: <span>${getCardValue(visibleCard)} + ?</span>`;
+    } else if (visibleCards.length > 0) {
+        dealerTotal.innerHTML = `Total: <span>${calculateHandTotal(visibleCards)}</span>`;
     } else {
         dealerTotal.innerHTML = 'Total: <span>0</span>';
     }
+}
+
+function calculateHandTotal(cards) {
+    let total = 0;
+    let aces = 0;
+    cards.forEach(card => {
+        const value = card.slice(0, -1);
+        if (value === 'A') {
+            total += 11;
+            aces += 1;
+        } else if (['K', 'Q', 'J'].includes(value)) {
+            total += 10;
+        } else {
+            total += Number(value);
+        }
+    });
+    while (total > 21 && aces > 0) {
+        total -= 10;
+        aces -= 1;
+    }
+    return total;
 }
 
 function updatePlayersUI(players) {
@@ -505,7 +550,7 @@ async function pollGameState() {
             lobbySection.classList.remove('hidden');
             gameSection.classList.add('hidden');
             window.history.replaceState({}, '', window.location.pathname);
-            showMessage('This game session expired. Please create or join another game.', 5000);
+            showInlineMessage('This game session expired. Please create or join another game.', 5000);
         }
     } catch (error) {
         console.error('Error polling game state:', error);

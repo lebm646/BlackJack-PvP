@@ -80,5 +80,19 @@ class TestBlackjack(unittest.TestCase):
         self.session.dealer_turn()
         self.assertEqual(self.session.dealer.total, 17)
 
+    def test_blackjack_player_is_skipped(self):
+        first_player = self.session.players[0]
+        second_player = self.session.players[1]
+        first_player.blackjack = True
+        first_player.total = 21
+        second_player.blackjack = False
+        second_player.busted = False
+        self.session.current_player_index = 0
+
+        should_continue = self.session._skip_completed_players()
+
+        self.assertTrue(should_continue)
+        self.assertIs(self.session.get_current_player(), second_player)
+
 if __name__ == '__main__':
     unittest.main()

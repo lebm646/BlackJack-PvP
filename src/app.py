@@ -148,20 +148,14 @@ def hit(session_id):
     # Check if player has blackjack or busted
     if current_player.blackjack:
         message = f"{player_name} has Blackjack with {current_player.total}!"
-        # Move to next player
-        if not session.next_turn():
-            # Game is over, dealer's turn
-            session.determine_winners()
+        session.next_turn()
         return jsonify({
             'message': message,
             'game_state': session.get_game_state()
         })
     elif current_player.busted:
         message = f"{player_name} busted with {current_player.total}!"
-        # Move to next player
-        if not session.next_turn():
-            # Game is over, dealer's turn
-            session.determine_winners()
+        session.next_turn()
         return jsonify({
             'message': message,
             'game_state': session.get_game_state()
@@ -190,10 +184,6 @@ def stand(session_id):
     
     # Move to next player or dealer's turn
     should_continue = session.next_turn()
-    
-    # If game is over, determine winners
-    if not should_continue:
-        session.determine_winners()
     
     # Get the updated game state
     game_state = session.get_game_state()

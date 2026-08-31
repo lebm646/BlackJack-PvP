@@ -57,6 +57,7 @@ class GameSession:
             
         self.status = "in_progress"
         self.current_player_index = 0
+        self.winner = None
         self.deck = self.initialize_deck()
         random.shuffle(self.deck)
         
@@ -74,6 +75,7 @@ class GameSession:
         
         # Deal initial cards
         self.deal_initial_cards()
+        self._skip_completed_players()
         return True
 
     def deal_initial_cards(self) -> None:
@@ -96,14 +98,23 @@ class GameSession:
     def next_turn(self) -> bool:
         """Move to the next player's turn. Returns True if game should continue."""
         self.current_player_index += 1
-        
+
+        return self._skip_completed_players()
+
+    def _skip_completed_players(self) -> bool:
+        """Advance past blackjack/busted players and run the dealer if none remain."""
+        while self.current_player_index < len(self.players):
+            player = self.players[self.current_player_index]
+            if not player.blackjack and not player.busted:
+                return True
+            self.current_player_index += 1
+
         if self.current_player_index >= len(self.players):
             self.current_player_index = 0
             self.dealer_turn()
             self.determine_winners()
-            self.status = "finished"
             return False
-            
+
         return True
 
     def dealer_turn(self) -> None:
@@ -116,6 +127,9 @@ class GameSession:
         dealer_total = self.dealer.total
         dealer_busted = self.dealer.busted
         dealer_blackjack = self.dealer.blackjack
+        winners = []
+        pushes = []
+        dealer_wins = []
         
         # Clear previous messages to avoid duplicates
         self.messages = []
@@ -134,43 +148,61 @@ class GameSession:
             if player.busted:
                 # Player busted, they lose their bet
                 player.lose_bet()
+                dealer_wins.append(player.name)
                 self.add_game_message(f"{player.name} busted and lost their bet!")
             elif dealer_busted:
                 # Dealer busted, all remaining players win 1:1
                 winnings = player.win_bet(1)  # 1:1 payout
+                winners.append(player.name)
                 self.add_game_message(f"Dealer busted! {player.name} wins {winnings} chips!")
             elif player.blackjack:
                 if dealer_blackjack:
                     # Both have blackjack, push
                     player.chips += player.bet
                     player.bet = 0
+                    pushes.append(player.name)
                     self.add_game_message(f"Both have blackjack! {player.name} pushes.")
                 else:
                     # Player has blackjack, dealer doesn't - 3:2 payout
                     winnings = player.win_bet(1.5)  # 3:2 payout
+                    winners.append(player.name)
                     self.add_game_message(f"Blackjack! {player.name} wins {winnings} chips!")
             elif dealer_blackjack:
                 # Dealer has blackjack, player doesn't
                 player.lose_bet()
+                dealer_wins.append(player.name)
                 self.add_game_message(f"Dealer has blackjack! {player.name} loses their bet!")
             elif player.total > dealer_total:
                 # Player beats dealer - 1:1 payout
                 winnings = player.win_bet(1)
+                winners.append(player.name)
                 self.add_game_message(f"{player.name} wins {winnings} chips!")
             elif player.total == dealer_total:
                 # Push - return bet
                 player.chips += player.bet
                 player.bet = 0
+                pushes.append(player.name)
                 self.add_game_message(f"{player.name} pushes and gets their bet back")
             else:
                 # Player loses to dealer
                 player.lose_bet()
+                dealer_wins.append(player.name)
                 self.add_game_message(f"{player.name} loses their bet!")
         
         # Reset bets for the next round
         for player in self.players:
             player.bet = 0
-            
+
+        result_parts = []
+        if winners:
+            label = "Winner" if len(winners) == 1 else "Winners"
+            result_parts.append(f"{label}: {', '.join(winners)}!")
+        if dealer_wins:
+            result_parts.append(f"Dealer beats {', '.join(dealer_wins)}.")
+        if pushes:
+            result_parts.append(f"Push: {', '.join(pushes)}.")
+        self.winner = " ".join(result_parts) or "Round complete."
+
         self.status = "finished"
 
     def add_game_message(self, message: str) -> None:
