@@ -498,6 +498,14 @@ async function pollGameState() {
             const gameState = await response.json();
             currentGame.status = gameState.status;
             updateGameUI(gameState);
+        } else if (response.status === 404) {
+            // Stop polling a session that no longer exists. Without this, the
+            // two-second timer keeps generating identical 404s indefinitely.
+            currentGame.id = null;
+            lobbySection.classList.remove('hidden');
+            gameSection.classList.add('hidden');
+            window.history.replaceState({}, '', window.location.pathname);
+            showMessage('This game session expired. Please create or join another game.', 5000);
         }
     } catch (error) {
         console.error('Error polling game state:', error);
@@ -509,6 +517,10 @@ async function updateAvailableGames() {
     try {
         const response = await fetch('/api/sessions');
         const data = await response.json();
+
+        if (!response.ok) {
+            throw new Error(data.error || `Unable to list sessions (${response.status})`);
+        }
         
         const availableGames = document.getElementById('availableGames');
         availableGames.innerHTML = '';

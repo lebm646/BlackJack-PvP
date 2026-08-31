@@ -2,7 +2,7 @@ from flask import Flask, request, jsonify, render_template
 from .gameSession import GameSession
 import random
 import string
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import os
 
 # Get the base directory of the project
@@ -20,7 +20,7 @@ active_sessions = {}
 
 # Clean up old sessions that are older than 24 hours
 def cleanup_old_sessions():
-    current_time = datetime.utcnow()
+    current_time = datetime.now(timezone.utc)
     expired_sessions = [
         session_id for session_id, session in active_sessions.items()
         if current_time - session.created_at > timedelta(hours=24)
