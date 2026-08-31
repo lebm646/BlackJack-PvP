@@ -5,9 +5,9 @@ import os
 # Add the src directory to the Python path
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-from black_jack.src.gameSession import GameSession
-from black_jack.src.player import Player
-from black_jack.src.dealer import Dealer
+from src.gameSession import GameSession
+from src.player import Player
+from src.dealer import Dealer
 
 class TestBlackjack(unittest.TestCase):
     def setUp(self):
