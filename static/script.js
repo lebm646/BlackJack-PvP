@@ -21,6 +21,36 @@ let pollingGame = false;
 let pollingLobby = false;
 let pollFailures = 0;
 let nextPollAt = 0;
+let actionPending = false;
+let actionEpoch = 0;
+let lastGameState = null;
+let lastRenderedState = '';
+
+function pollDelay() {
+    return ['in_progress', 'betting'].includes(currentGame.status) ? 500 :
+        currentGame.status === 'waiting' ? 1000 : 2500;
+}
+
+async function runAction(action, button) {
+    if (actionPending) return;
+    actionPending = true;
+    actionEpoch += 1;
+    const label = button.textContent;
+    button.textContent = 'Working…';
+    const buttons = [createGameBtn, joinGameBtn, startGameBtn, placeBetBtn, hitBtn, standBtn, newRoundBtn];
+    buttons.forEach(control => { control.disabled = true; });
+    try {
+        await action();
+    } finally {
+        actionPending = false;
+        actionEpoch += 1;
+        button.textContent = label;
+        buttons.forEach(control => { control.disabled = false; });
+        if (lastGameState) updateGameControls(lastGameState);
+        nextPollAt = 0;
+        pollGameState();
+    }
+}
 
 // DOM Elements
 const lobbySection = document.getElementById('lobby');
@@ -47,13 +77,11 @@ const currentGameId = document.getElementById('currentGameId');
 
 // Event Listeners
 document.addEventListener('DOMContentLoaded', () => {
-    createGameBtn.addEventListener('click', createGame);
-    joinGameBtn.addEventListener('click', joinGame);
-    startGameBtn.addEventListener('click', startGame);
-    hitBtn.addEventListener('click', hit);
-    standBtn.addEventListener('click', stand);
-    newRoundBtn.addEventListener('click', startNewRound);
-    placeBetBtn.addEventListener('click', placeBet);
+    for (const [button, action] of [[createGameBtn, createGame], [joinGameBtn, joinGame],
+        [startGameBtn, startGame], [hitBtn, hit], [standBtn, stand],
+        [newRoundBtn, startNewRound], [placeBetBtn, placeBet]]) {
+        button.addEventListener('click', () => runAction(action, button));
+    }
     
     // Check for game ID in URL
     const urlParams = new URLSearchParams(window.location.search);
@@ -64,7 +92,14 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     // Poll for game updates
-    setInterval(pollGameState, 2000);
+    setInterval(pollGameState, 100);
+    document.addEventListener('visibilitychange', () => {
+        if (!document.hidden) {
+            nextPollAt = 0;
+            pollGameState();
+            updateAvailableGames();
+        }
+    });
 });
 
 // API Functions
@@ -346,6 +381,10 @@ function showInlineMessage(message, duration = 3000) {
 }
 
 function updateGameUI(gameState) {
+    const signature = JSON.stringify(gameState);
+    if (signature === lastRenderedState) return;
+    lastRenderedState = signature;
+    lastGameState = gameState;
     // Update game status
     currentGame.status = gameState.status;
     gameStatus.textContent = gameState.status.replace('_', ' ');
@@ -423,7 +462,7 @@ function updateGameUI(gameState) {
         });
         
         const existingMessages = document.querySelector('.game-messages');
-        const gameSection = document.querySelector('.game-section');
+        const gameSection = document.getElementById('game');
         
         if (existingMessages) {
             existingMessages.replaceWith(messagesDiv);
@@ -469,7 +508,7 @@ function updateDealerUI(dealer, status, onRevealComplete) {
             if (animationId !== dealerAnimationId) return;
             renderDealerCards(dealer.cards, visibleCount, true);
             if (index === revealSteps.length - 1) onRevealComplete();
-        }, 700 + (index * 900));
+        }, 200 + (index * 250));
     });
 }
 
@@ -560,7 +599,7 @@ function updateGameControls(gameState) {
     
     if (currentPlayer) {
         // Disable buttons if it's not the player's turn, or if they've busted or have blackjack
-        const shouldDisable = !isCurrentTurn || currentPlayer.busted || currentPlayer.blackjack || gameState.status !== 'in_progress';
+        const shouldDisable = actionPending || !isCurrentTurn || currentPlayer.busted || currentPlayer.blackjack || gameState.status !== 'in_progress';
         
         hitBtn.disabled = shouldDisable;
         standBtn.disabled = shouldDisable;
@@ -628,19 +667,21 @@ function getCardValue(card) {
 
 // Polling Functions
 async function pollGameState() {
-    if (!currentGame.id || document.hidden || pollingGame || Date.now() < nextPollAt) return;
+    if (!currentGame.id || document.hidden || actionPending || pollingGame || Date.now() < nextPollAt) return;
     pollingGame = true;
     const requestedGame = currentGame.id;
+    const requestedEpoch = actionEpoch;
     
     try {
         const response = await fetch(`/api/sessions/${requestedGame}/status`);
-        if (requestedGame !== currentGame.id) return;
+        if (requestedGame !== currentGame.id || requestedEpoch !== actionEpoch) return;
         
         if (response.ok) {
             const gameState = await response.json();
+            if (requestedGame !== currentGame.id || requestedEpoch !== actionEpoch) return;
             pollFailures = 0;
-            nextPollAt = 0;
             currentGame.status = gameState.status;
+            nextPollAt = Date.now() + pollDelay();
             updateGameUI(gameState);
         } else if (response.status === 404) {
             // Stop polling a session that no longer exists. Without this, the
@@ -654,6 +695,7 @@ async function pollGameState() {
             throw new Error('Session status temporarily unavailable');
         }
     } catch (error) {
+        if (requestedGame !== currentGame.id || requestedEpoch !== actionEpoch) return;
         console.error('Error polling game state:', error);
         pollFailures += 1;
         nextPollAt = Date.now() + Math.min(30000, 2000 * (2 ** Math.min(pollFailures, 4)));
@@ -700,7 +742,7 @@ async function updateAvailableGames() {
                 joinButton.addEventListener('click', (e) => {
                     e.stopPropagation();
                     gameIdInput.value = session.session_id;
-                    joinGame();
+                    runAction(joinGame, joinGameBtn);
                 });
 
                 gameElement.append(details, joinButton);
