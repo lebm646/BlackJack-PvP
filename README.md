@@ -51,7 +51,29 @@ A feature-rich multiplayer Blackjack game built with Flask (Python) for the back
 - **Session Identity**: Private player and host tokens are kept in session storage for tab refreshes
 - **Responsive Design**: CSS Grid and Flexbox
 
-> Active games are currently stored in application memory. Local development is reliable, but a multi-instance production deployment should use a shared store such as Redis.
+Active games use shared Upstash Redis when configured. Successful player actions renew a 24-hour idle expiry; polling alone does not keep abandoned games alive. Local development without Redis uses memory.
+
+## Vercel storage setup
+
+Connect your Upstash Redis database to this Vercel project and enable the Production environment. Keep the generated credentials private. The app accepts either pair of environment variables:
+
+- `KV_REST_API_URL` and `KV_REST_API_TOKEN` (Vercel integration defaults)
+- `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN`
+
+Redeploy after connecting the database so the new deployment receives the variables. Use the read/write token, not a read-only token. No additional Python runtime dependency is needed: the app uses Upstash's HTTPS REST API.
+
+Vercel deployments never fall back to memory: missing credentials or storage outages return a temporary 503 error without signing players out. Updates use atomic compare-and-set; conflicting actions return 409 and should be retried after refreshing the game state. Production and preview use separate key prefixes; `BLACKJACK_REDIS_PREFIX` can override the default when sharing a database between multiple projects.
+
+Games created before the Redis migration cannot be recovered; create a new game after deployment.
+
+## Tests
+
+```bash
+python -m pip install -r requirements-dev.txt
+python -m unittest discover -s tests -v
+```
+
+Storage tests run Redis Lua scripts against fakeredis and simulate separate function instances. They never connect to the production database.
 
 ## 🚀 Getting Started
 

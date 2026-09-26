@@ -2,16 +2,20 @@ import unittest
 from unittest.mock import patch
 
 from src.app import active_sessions, app
+from src.session_store import MemorySessionStore
 
 
 class TestAppSessions(unittest.TestCase):
     def setUp(self):
         active_sessions.clear()
         app.config.update(TESTING=True)
+        self.original_store = app.config['SESSION_STORE']
+        app.config['SESSION_STORE'] = MemorySessionStore(active_sessions)
         self.client = app.test_client()
 
     def tearDown(self):
         active_sessions.clear()
+        app.config['SESSION_STORE'] = self.original_store
 
     def create_session(self, name="Alice"):
         response = self.client.post("/api/sessions", json={"creator_name": name})
@@ -95,7 +99,7 @@ class TestAppSessions(unittest.TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertIn("has 21", response.get_json()["message"])
-        self.assertFalse(player.blackjack)
+        self.assertFalse(response.get_json()['game_state']['players'][0]['blackjack'])
         self.assertEqual(response.get_json()["game_state"]["status"], "finished")
 
     def test_invalid_session_payloads_return_client_errors(self):

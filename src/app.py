@@ -1,8 +1,9 @@
 from flask import Flask, request, jsonify, render_template
+from functools import wraps
+from .session_store import configured_store, StoreUnavailable
 from .gameSession import GameSession
 import secrets
 import string
-from datetime import datetime, timedelta, timezone
 import os
 
 # Get the base directory of the project
@@ -15,18 +16,36 @@ app = Flask(__name__,
             template_folder=TEMPLATE_DIR,
             static_folder=STATIC_DIR)
 
-# In-memory storage for active game sessions
+# Local fallback only. Vercel always requires shared storage.
 active_sessions = {}
+app.config['SESSION_STORE'] = configured_store(active_sessions)
 
-# Clean up old sessions that are older than 24 hours
-def cleanup_old_sessions():
-    current_time = datetime.now(timezone.utc)
-    expired_sessions = [
-        session_id for session_id, session in active_sessions.items()
-        if current_time - session.created_at > timedelta(hours=24)
-    ]
-    for session_id in expired_sessions:
-        del active_sessions[session_id]
+def session_route(write=False):
+    def decorate(handler):
+        @wraps(handler)
+        def wrapped(session_id):
+            store = app.config['SESSION_STORE']
+            session, version = store.load(session_id)
+            if session is None:
+                return jsonify({'error': 'Session not found or expired'}), 404
+            response = app.make_response(handler(session_id, session))
+            if write and response.status_code < 400 and not store.save(session, version):
+                return jsonify({'error': 'The game changed. Refresh and try your action again.'}), 409
+            return response
+        return wrapped
+    return decorate
+
+
+@app.errorhandler(StoreUnavailable)
+def storage_unavailable(error):
+    return jsonify({'error': 'Game storage is temporarily unavailable. Please try again shortly.'}), 503
+
+
+@app.after_request
+def prevent_api_caching(response):
+    if request.path.startswith('/api/'):
+        response.headers['Cache-Control'] = 'no-store'
+    return response
 
 # Generate a random session ID
 def generate_session_id():
@@ -35,7 +54,8 @@ def generate_session_id():
 
 
 def get_json_body():
-    return request.get_json(silent=True) or {}
+    data = request.get_json(silent=True)
+    return data if isinstance(data, dict) else {}
 
 
 def get_player_token():
@@ -56,18 +76,17 @@ def home():
 
 @app.route('/api/sessions', methods=['GET'])
 def list_sessions():
-    cleanup_old_sessions()
     return jsonify({
         'sessions': [
             {
-                'session_id': session_id,
+                'session_id': session.session_id,
                 'creator': session.creator,
                 'player_count': len(session.players),
                 'max_players': session.max_players,
                 'status': session.status,
                 'created_at': session.created_at.isoformat()
             }
-            for session_id, session in active_sessions.items()
+            for session in app.config['SESSION_STORE'].list_waiting()
         ]
     })
 
@@ -84,13 +103,15 @@ def create_session():
 
     creator_name = creator_name.strip()
     
-    session_id = generate_session_id()
-    while session_id in active_sessions:
+    store = app.config['SESSION_STORE']
+    for _ in range(5):
         session_id = generate_session_id()
-    
-    session = GameSession(session_id, creator_name, max_players)
-    creator = session.add_player(creator_name)
-    active_sessions[session_id] = session
+        session = GameSession(session_id, creator_name, max_players)
+        creator = session.add_player(creator_name)
+        if store.save(session):
+            break
+    else:
+        raise StoreUnavailable('Unable to allocate a session')
     
     return jsonify({
         'session_id': session_id,
@@ -100,11 +121,8 @@ def create_session():
     }), 201
 
 @app.route('/api/sessions/<session_id>/join', methods=['POST'])
-def join_session(session_id):
-    if session_id not in active_sessions:
-        return jsonify({'error': 'Session not found'}), 404
-    
-    session = active_sessions[session_id]
+@session_route(write=True)
+def join_session(session_id, session):
     data = get_json_body()
     player_name = data.get('player_name', '')
     
@@ -128,11 +146,8 @@ def join_session(session_id):
     })
 
 @app.route('/api/sessions/<session_id>/start', methods=['POST'])
-def start_session(session_id):
-    if session_id not in active_sessions:
-        return jsonify({'error': 'Session not found'}), 404
-    
-    session = active_sessions[session_id]
+@session_route(write=True)
+def start_session(session_id, session):
     if not is_host(session):
         return jsonify({'error': 'Only the host can start the game'}), 403
 
@@ -149,11 +164,8 @@ def start_session(session_id):
 
 
 @app.route('/api/sessions/<session_id>/bet', methods=['POST'])
-def place_bet(session_id):
-    if session_id not in active_sessions:
-        return jsonify({'error': 'Session not found'}), 404
-
-    session = active_sessions[session_id]
+@session_route(write=True)
+def place_bet(session_id, session):
     data = get_json_body()
     amount = data.get('amount')
     player_token = get_player_token()
@@ -172,18 +184,13 @@ def place_bet(session_id):
     })
 
 @app.route('/api/sessions/<session_id>/status', methods=['GET'])
-def get_session_status(session_id):
-    if session_id not in active_sessions:
-        return jsonify({'error': 'Session not found'}), 404
-    
-    return jsonify(active_sessions[session_id].get_game_state())
+@session_route()
+def get_session_status(session_id, session):
+    return jsonify(session.get_game_state())
 
 @app.route('/api/sessions/<session_id>/hit', methods=['POST'])
-def hit(session_id):
-    if session_id not in active_sessions:
-        return jsonify({'error': 'Session not found'}), 404
-    
-    session = active_sessions[session_id]
+@session_route(write=True)
+def hit(session_id, session):
     if session.status != 'in_progress':
         return jsonify({'error': 'The round is not in progress'}), 400
 
@@ -229,11 +236,8 @@ def hit(session_id):
     })
 
 @app.route('/api/sessions/<session_id>/stand', methods=['POST'])
-def stand(session_id):
-    if session_id not in active_sessions:
-        return jsonify({'error': 'Session not found'}), 404
-    
-    session = active_sessions[session_id]
+@session_route(write=True)
+def stand(session_id, session):
     if session.status != 'in_progress':
         return jsonify({'error': 'The round is not in progress'}), 400
 
@@ -266,11 +270,8 @@ def stand(session_id):
         })
 
 @app.route('/api/sessions/<session_id>/reset', methods=['POST'])
-def reset_session(session_id):
-    if session_id not in active_sessions:
-        return jsonify({'error': 'Session not found'}), 404
-    
-    session = active_sessions[session_id]
+@session_route(write=True)
+def reset_session(session_id, session):
     if not is_host(session):
         return jsonify({'error': 'Only the host can start a new round'}), 403
     if session.status != 'finished':

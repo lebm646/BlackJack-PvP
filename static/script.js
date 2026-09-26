@@ -17,6 +17,10 @@ let lastAnnouncedWinner = null;
 let dealerAnimationId = 0;
 let dealerResultKey = null;
 let inlineMessageTimer = null;
+let pollingGame = false;
+let pollingLobby = false;
+let pollFailures = 0;
+let nextPollAt = 0;
 
 // DOM Elements
 const lobbySection = document.getElementById('lobby');
@@ -624,13 +628,18 @@ function getCardValue(card) {
 
 // Polling Functions
 async function pollGameState() {
-    if (!currentGame.id) return;
+    if (!currentGame.id || document.hidden || pollingGame || Date.now() < nextPollAt) return;
+    pollingGame = true;
+    const requestedGame = currentGame.id;
     
     try {
-        const response = await fetch(`/api/sessions/${currentGame.id}/status`);
+        const response = await fetch(`/api/sessions/${requestedGame}/status`);
+        if (requestedGame !== currentGame.id) return;
         
         if (response.ok) {
             const gameState = await response.json();
+            pollFailures = 0;
+            nextPollAt = 0;
             currentGame.status = gameState.status;
             updateGameUI(gameState);
         } else if (response.status === 404) {
@@ -640,15 +649,24 @@ async function pollGameState() {
             lobbySection.classList.remove('hidden');
             gameSection.classList.add('hidden');
             window.history.replaceState({}, '', window.location.pathname);
-            showInlineMessage('This game session expired. Please create or join another game.', 5000);
+            showInlineMessage('This session no longer exists or has expired. Please create or join another game.', 5000);
+        } else {
+            throw new Error('Session status temporarily unavailable');
         }
     } catch (error) {
         console.error('Error polling game state:', error);
+        pollFailures += 1;
+        nextPollAt = Date.now() + Math.min(30000, 2000 * (2 ** Math.min(pollFailures, 4)));
+        showInlineMessage('Connection interrupted. Reconnecting to your game…', 5000);
+    } finally {
+        pollingGame = false;
     }
 }
 
 // Initialize available games list
 async function updateAvailableGames() {
+    if (currentGame.id || document.hidden || pollingLobby) return;
+    pollingLobby = true;
     try {
         const response = await fetch('/api/sessions');
         const data = await response.json();
@@ -691,9 +709,12 @@ async function updateAvailableGames() {
         });
     } catch (error) {
         console.error('Error fetching available games:', error);
+        document.getElementById('availableGames').textContent = 'Games are temporarily unavailable. Retrying shortly…';
+    } finally {
+        pollingLobby = false;
     }
 }
 
 // Update available games list periodically
-setInterval(updateAvailableGames, 5000);
+setInterval(updateAvailableGames, 15000);
 updateAvailableGames();
