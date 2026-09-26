@@ -1,4 +1,5 @@
 import random
+import secrets
 
 def draw():
     """Draw a random card from a standard deck."""
@@ -31,8 +32,9 @@ def calculate(cards):
     return value
 
 class Player:
-    def __init__(self, name, chips = 100):
+    def __init__(self, name, chips=100, token=None):
         self.name = name
+        self.token = token or secrets.token_urlsafe(24)
         self.cards = []
         self.total = 0
         self.busted = False
@@ -42,20 +44,25 @@ class Player:
     
     def place_bet(self, amount):
         """Place a bet, deducting the amount from chips."""
-        if amount > self.chips:
+        if (
+            isinstance(amount, bool)
+            or not isinstance(amount, int)
+            or amount <= 0
+            or amount > self.chips
+            or self.bet != 0
+        ):
             return False
         
         self.bet = amount
         self.chips -= amount
         return True
     
-    def win_bet(self, multiplier=2):
-        """Add winnings to chips based on the bet and multiplier."""
+    def win_bet(self, profit_multiplier=1):
+        """Return the stake and add winnings based on a profit multiplier."""
         if self.bet <= 0:
             return 0
             
-        # Calculate total winnings (bet * multiplier) plus return the original bet
-        winnings = (self.bet * multiplier) + self.bet
+        winnings = self.bet + (self.bet * profit_multiplier)
         self.chips += winnings
         self.bet = 0  # Reset the bet
         return winnings
@@ -79,7 +86,6 @@ class Player:
         
         if self.total > 21:
             self.busted = True
-        if self.total == 21:
-            self.blackjack = True
+        self.blackjack = len(self.cards) == 2 and self.total == 21
 
         return card

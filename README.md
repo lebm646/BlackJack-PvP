@@ -5,7 +5,9 @@ A feature-rich multiplayer Blackjack game built with Flask (Python) for the back
 ## 🚀 Features
 
 - **Multiplayer Support**: Play with friends in the same game session
-- **Chip Betting System**: Start with 100 chips and bet each round
+- **Chip Betting System**: Start with 100 chips and choose a validated bet each round
+- **Private Player Identity**: Player actions use private per-session credentials
+- **Host Controls**: Only the table creator can start games and new rounds
 - **Real-time Updates**: See game state changes instantly
 - **Blackjack Payouts**: 3:2 payout for Blackjack (1.5x your bet)
 - **Dealer AI**: Automated dealer follows standard Blackjack rules (hits on 16, stands on 17)
@@ -20,7 +22,8 @@ A feature-rich multiplayer Blackjack game built with Flask (Python) for the back
 
 2. **Place Your Bet**
    - Each player starts with 100 chips
-   - Place your bet before the round starts (default is 10 chips)
+   - The host opens betting, then each funded player chooses a positive whole-chip bet
+   - The cards are dealt automatically after the last player places a bet
 
 3. **Gameplay**
    - Each player is dealt two cards
@@ -45,7 +48,10 @@ A feature-rich multiplayer Blackjack game built with Flask (Python) for the back
 - **Backend**: Python/Flask
 - **Frontend**: Vanilla JavaScript with Fetch API
 - **Real-time Updates**: Polling mechanism for game state
+- **Session Identity**: Private player and host tokens are kept in session storage for tab refreshes
 - **Responsive Design**: CSS Grid and Flexbox
+
+> Active games are currently stored in application memory. Local development is reliable, but a multi-instance production deployment should use a shared store such as Redis.
 
 ## 🚀 Getting Started
 

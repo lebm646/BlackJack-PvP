@@ -2,6 +2,8 @@
 let currentGame = {
     id: null,
     playerName: '',
+    playerToken: '',
+    hostToken: '',
     isCreator: false,
     currentPlayer: null,
     players: [],
@@ -9,7 +11,7 @@ let currentGame = {
         cards: [],
         total: 0
     },
-    status: 'waiting' // waiting, in_progress, finished
+    status: 'waiting' // waiting, betting, in_progress, finished
 };
 let lastAnnouncedWinner = null;
 let dealerAnimationId = 0;
@@ -27,6 +29,9 @@ const startGameBtn = document.getElementById('startGame');
 const hitBtn = document.getElementById('hitBtn');
 const standBtn = document.getElementById('standBtn');
 const newRoundBtn = document.getElementById('newRoundBtn');
+const bettingControls = document.getElementById('bettingControls');
+const betAmountInput = document.getElementById('betAmount');
+const placeBetBtn = document.getElementById('placeBetBtn');
 const gameMessage = document.getElementById('gameMessage');
 const playersArea = document.getElementById('playersArea');
 const dealerCards = document.getElementById('dealerCards');
@@ -44,12 +49,14 @@ document.addEventListener('DOMContentLoaded', () => {
     hitBtn.addEventListener('click', hit);
     standBtn.addEventListener('click', stand);
     newRoundBtn.addEventListener('click', startNewRound);
+    placeBetBtn.addEventListener('click', placeBet);
     
     // Check for game ID in URL
     const urlParams = new URLSearchParams(window.location.search);
     const gameId = urlParams.get('game');
     if (gameId) {
         gameIdInput.value = gameId;
+        restoreIdentity(gameId);
     }
     
     // Poll for game updates
@@ -76,11 +83,14 @@ async function createGame() {
         if (response.status === 201) {
             currentGame.id = data.session_id;
             currentGame.playerName = playerName;
+            currentGame.playerToken = data.player_token;
+            currentGame.hostToken = data.host_token;
             currentGame.isCreator = true;
             currentGameId.textContent = data.session_id;
             
             // Update URL with game ID
             window.history.pushState({}, '', `?game=${data.session_id}`);
+            saveIdentity();
             
             // Show game section
             showGameSection();
@@ -122,10 +132,14 @@ async function joinGame() {
         if (response.ok) {
             currentGame.id = gameId;
             currentGame.playerName = playerName;
+            currentGame.playerToken = data.player_token;
+            currentGame.hostToken = '';
+            currentGame.isCreator = false;
             currentGameId.textContent = gameId;
             
             // Update URL with game ID
             window.history.pushState({}, '', `?game=${gameId}`);
+            saveIdentity();
             
             // Show game section
             showGameSection();
@@ -145,11 +159,14 @@ async function startGame() {
     try {
         const response = await fetch(`/api/sessions/${currentGame.id}/start`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' }
+            headers: { 'X-Host-Token': currentGame.hostToken }
         });
-        
-        if (!response.ok) {
-            const data = await response.json();
+
+        const data = await response.json();
+        if (response.ok) {
+            updateGameUI(data.game_state);
+            showMessage(data.message);
+        } else {
             showInlineMessage(data.error || 'Failed to start game');
         }
     } catch (error) {
@@ -158,12 +175,40 @@ async function startGame() {
     }
 }
 
+async function placeBet() {
+    const amount = Number(betAmountInput.value);
+    if (!Number.isInteger(amount) || amount <= 0) {
+        showInlineMessage('Enter a positive whole-chip bet');
+        return;
+    }
+
+    try {
+        const response = await fetch(`/api/sessions/${currentGame.id}/bet`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-Player-Token': currentGame.playerToken
+            },
+            body: JSON.stringify({ amount })
+        });
+        const data = await response.json();
+        if (response.ok) {
+            updateGameUI(data.game_state);
+            showMessage(data.message);
+        } else {
+            showInlineMessage(data.error || 'Failed to place bet');
+        }
+    } catch (error) {
+        console.error('Error placing bet:', error);
+        showInlineMessage('Failed to connect to server');
+    }
+}
+
 async function hit() {
     try {
         const response = await fetch(`/api/sessions/${currentGame.id}/hit`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ player_name: currentGame.playerName })
+            headers: { 'X-Player-Token': currentGame.playerToken }
         });
         
         if (response.ok) {
@@ -184,8 +229,7 @@ async function stand() {
     try {
         const response = await fetch(`/api/sessions/${currentGame.id}/stand`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ player_name: currentGame.playerName })
+            headers: { 'X-Player-Token': currentGame.playerToken }
         });
         
         if (response.ok) {
@@ -206,7 +250,7 @@ async function startNewRound() {
     try {
         const response = await fetch(`/api/sessions/${currentGame.id}/reset`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' }
+            headers: { 'X-Host-Token': currentGame.hostToken }
         });
         
         if (response.ok) {
@@ -231,6 +275,36 @@ const newRoundContainer = document.querySelector('.new-round-container');
 function showGameSection() {
     lobbySection.classList.add('hidden');
     gameSection.classList.remove('hidden');
+}
+
+function identityKey(gameId) {
+    return `blackjack:${gameId}`;
+}
+
+function saveIdentity() {
+    sessionStorage.setItem(identityKey(currentGame.id), JSON.stringify({
+        playerName: currentGame.playerName,
+        playerToken: currentGame.playerToken,
+        hostToken: currentGame.hostToken
+    }));
+}
+
+function restoreIdentity(gameId) {
+    try {
+        const saved = JSON.parse(sessionStorage.getItem(identityKey(gameId)) || 'null');
+        if (!saved || !saved.playerToken) return;
+        currentGame.id = gameId;
+        currentGame.playerName = saved.playerName;
+        currentGame.playerToken = saved.playerToken;
+        currentGame.hostToken = saved.hostToken || '';
+        currentGame.isCreator = Boolean(saved.hostToken);
+        currentGameId.textContent = gameId;
+        playerNameInput.value = saved.playerName;
+        showGameSection();
+        pollGameState();
+    } catch (error) {
+        console.error('Unable to restore game identity:', error);
+    }
 }
 
 function showMessage(message, duration = 3000) {
@@ -270,8 +344,9 @@ function showInlineMessage(message, duration = 3000) {
 function updateGameUI(gameState) {
     // Update game status
     currentGame.status = gameState.status;
-    gameStatus.textContent = gameState.status;
+    gameStatus.textContent = gameState.status.replace('_', ' ');
     playerCount.textContent = gameState.players.length;
+    maxPlayers.textContent = gameState.max_players;
     
     // Update dealer
     updateDealerUI(gameState.dealer, gameState.status, () => {
@@ -302,9 +377,17 @@ function updateGameUI(gameState) {
     } else {
         document.getElementById('gameControls').classList.add('hidden');
     }
+
+    const localPlayer = gameState.players.find(p => p.name === currentGame.playerName);
+    const canPlaceBet = gameState.status === 'betting' && localPlayer && localPlayer.can_bet;
+    bettingControls.classList.toggle('hidden', !canPlaceBet);
+    if (canPlaceBet) {
+        betAmountInput.max = localPlayer.chips;
+        betAmountInput.value = Math.min(Number(betAmountInput.value) || 10, localPlayer.chips);
+    }
     
     // Show new round button if game is finished
-    if (gameState.status === 'finished') {
+    if (gameState.status === 'finished' && currentGame.isCreator) {
         newRoundContainer.classList.remove('hidden');
         newRoundBtn.classList.remove('hidden');
     } else {
@@ -343,6 +426,8 @@ function updateGameUI(gameState) {
         } else if (gameSection) {
             gameSection.appendChild(messagesDiv);
         }
+    } else {
+        document.querySelector('.game-messages')?.remove();
     }
 }
 
@@ -450,11 +535,16 @@ function updatePlayersUI(players) {
         const chipsElement = document.createElement('div');
         chipsElement.className = 'chips';
         chipsElement.textContent = `Chips: ${player.chips}`;
+
+        const betElement = document.createElement('div');
+        betElement.className = 'player-bet';
+        betElement.textContent = player.bet > 0 ? `Bet: ${player.bet}` : '';
         
         playerElement.appendChild(playerName);
         playerElement.appendChild(cardsContainer);
         playerElement.appendChild(totalElement);
         playerElement.appendChild(chipsElement);
+        playerElement.appendChild(betElement);
         
         playersArea.appendChild(playerElement);
     });
@@ -579,20 +669,23 @@ async function updateAvailableGames() {
             if (session.status === 'waiting') {
                 const gameElement = document.createElement('div');
                 gameElement.className = 'available-game';
-                gameElement.innerHTML = `
-                    <div>
-                        <strong>${session.creator}'s Game</strong><br>
-                        <small>Players: ${session.player_count}/${session.max_players}</small>
-                    </div>
-                    <button class="btn btn-small" data-id="${session.session_id}">Join</button>
-                `;
-                
-                gameElement.querySelector('button').addEventListener('click', (e) => {
+                const details = document.createElement('div');
+                const title = document.createElement('strong');
+                title.textContent = `${session.creator}'s Game`;
+                const count = document.createElement('small');
+                count.textContent = `Players: ${session.player_count}/${session.max_players}`;
+                details.append(title, document.createElement('br'), count);
+
+                const joinButton = document.createElement('button');
+                joinButton.className = 'btn btn-small';
+                joinButton.textContent = 'Join';
+                joinButton.addEventListener('click', (e) => {
                     e.stopPropagation();
                     gameIdInput.value = session.session_id;
                     joinGame();
                 });
-                
+
+                gameElement.append(details, joinButton);
                 availableGames.appendChild(gameElement);
             }
         });

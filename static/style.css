@@ -207,6 +207,27 @@ body {
     border-top: 1px solid rgba(255, 255, 255, 0.1);
 }
 
+.betting-controls {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 12px;
+    margin: 24px 0;
+    padding: 18px;
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 8px;
+}
+
+.betting-controls .form-input {
+    flex: 0 1 160px;
+    min-width: 120px;
+}
+
+.player-bet {
+    color: #f1c40f;
+    font-weight: bold;
+}
+
 /* Make sure the New Round button is visible */
 #newRoundBtn {
     background-color: #f39c12;
@@ -365,6 +386,10 @@ body {
     .game-controls {
         flex-direction: column;
         align-items: center;
+    }
+
+    .betting-controls {
+        flex-direction: column;
     }
     
     .btn-action {
